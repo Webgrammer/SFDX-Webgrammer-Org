@@ -14,6 +14,7 @@ global with sharing class AccountManager {
         global String zipCode { get; set; }
         global String website { get; set; }
         global String phone { get; set; }
+        global String internal { get; set; }
     }
 
     global class AccountManagerAPIResponse {
@@ -33,6 +34,7 @@ global with sharing class AccountManager {
         account.shippingPostalCode = externalAccount.zipCode;
         account.phone = externalAccount.phone;
         account.website = externalAccount.website;
+        account.Internal_Account__c = (externalAccount.internal == 'true' ? true : false);
         return account;
     }
 
@@ -49,15 +51,47 @@ global with sharing class AccountManager {
         try{
             Database.SaveResult[] insertResults = database.insert(parsedAccounts, true);
             response.message = 'Success';
-            response.code = 200;
+            response.code = successCode;
             for(Account parsedAccount : parsedAccounts){
                 response.accountsCreated.add(parsedAccount);
             }
         }
         catch(Exception ex){
-            response.message = ex.getMessage() + ex.getLineNumber();
-            response.code = 400;
+            response.message = ex.getMessage();
+            response.code = errorCode;
         }
         return response;
+    }
+
+    @HttpGet
+    global static AccountManagerAPIResponse getAccount(){
+        
+        String accountId = RestContext.request.params.get('id');
+        List<Account> accounts = new List<Account>();
+
+        AccountManagerAPIResponse accountResponse = new AccountManagerAPIResponse();
+
+        if(accountId != null){
+            accounts = [ SELECT ID, Name, ShippingCity, ShippingState, ShippingCountry,
+            ShippingPostalCode, ShippingStreet, Phone, Website 
+            FROM Account WHERE ID = :accountId AND Internal_Account__c = FALSE ];
+
+            if(accounts.size() == 0){
+                accountResponse.message = 'Error: The account does not exists or is not available for public API exposure.';
+                accountResponse.code = errorCode;
+            }
+            else{
+                accountResponse.message = 'Success';
+                accountResponse.code = successCode;
+                accountResponse.accountsCreated = accounts;
+            }
+
+        }
+        else{
+            accountResponse.message = 'Error: The account Id value was not provided.';
+            accountResponse.code = errorCode;
+        }
+
+        return accountResponse;
     }
 }
